@@ -1,7 +1,9 @@
 package main
 
 import (
+	"fmt"
 	"net/http"
+	"path"
 	"strings"
 )
 
@@ -9,10 +11,11 @@ type MyRouter struct {
 	// http 메소드, URL 경로의 키와 핸들러 함수를 값으로 가진 2차원 맵,
 	// { "GET": { "/path": 함수 } }
 	handlers map[string]map[string]MyHandlerFunc
+	basePath string
+	server   *MyServer
 }
 
-// HandleFunc
-// 핸들러 등록 메소드
+// HandleFunc 핸들러 등록 메소드
 func (router *MyRouter) HandleFunc(method, urlPattern string, handler MyHandlerFunc) {
 	_, isExists := router.handlers[method]
 	if !isExists {
@@ -23,10 +26,13 @@ func (router *MyRouter) HandleFunc(method, urlPattern string, handler MyHandlerF
 	router.handlers[method][urlPattern] = handler
 }
 
+// 요청 정보에 맞는 핸들러를 실행시키는 미들웨어(핸들러) 리턴
 func (router *MyRouter) handler() MyHandlerFunc {
 	return func(c *Context) {
 		for pattern, handler := range router.handlers[c.Request.Method] {
-			if ok, params := match(pattern, c.Request.URL.Path); ok {
+			fmt.Println(router.calculateAbsolutePath(pattern), " 이게 맞나 ", pattern, " ", c.Request.URL.Path)
+			ok, params := match(router.calculateAbsolutePath(pattern), c.Request.URL.Path)
+			if ok {
 				// Context 생성
 				context := Context{
 					Params:         make(map[string]any),
@@ -45,6 +51,35 @@ func (router *MyRouter) handler() MyHandlerFunc {
 		http.NotFound(c.ResponseWriter, c.Request)
 		return
 	}
+}
+
+func (router *MyRouter) GET(urlPattern string, handler MyHandlerFunc) {
+	router.HandleFunc(http.MethodGet, urlPattern, handler)
+}
+
+func (router *MyRouter) POST(urlPattern string, handler MyHandlerFunc) {
+	router.HandleFunc(http.MethodPost, urlPattern, handler)
+}
+
+func (router *MyRouter) PUT(urlPattern string, handler MyHandlerFunc) {
+	router.HandleFunc(http.MethodPut, urlPattern, handler)
+}
+
+func (router *MyRouter) PATCH(urlPattern string, handler MyHandlerFunc) {
+	router.HandleFunc(http.MethodPatch, urlPattern, handler)
+}
+
+func (router *MyRouter) DELETE(urlPattern string, handler MyHandlerFunc) {
+	router.HandleFunc(http.MethodDelete, urlPattern, handler)
+}
+
+// 모든 http 메소드에 매칭
+func (router *MyRouter) ANY(urlPattern string, handler MyHandlerFunc) {
+	router.HandleFunc(http.MethodGet, urlPattern, handler)
+	router.HandleFunc(http.MethodPost, urlPattern, handler)
+	router.HandleFunc(http.MethodPut, urlPattern, handler)
+	router.HandleFunc(http.MethodPatch, urlPattern, handler)
+	router.HandleFunc(http.MethodDelete, urlPattern, handler)
 }
 
 // 핸들러의 pattern과 URL PATH가 일치하는지 체크
@@ -71,10 +106,30 @@ func match(pattern, path string) (bool, map[string]string) {
 		case len(patterns[i]) > 0 && patterns[i][0] == ':':
 			// 패턴이 ‘:’ 문자로 시작하면 params에 URL params를 담은 후 다음 루프 수행
 			params[patterns[i][1:]] = paths[i]
+		case patterns[i] == "*":
+			// 패턴에 *이 있으면 무조건 매칭 성공
+			return true, params
 		default:
 			// 일치하는 경우가 없으면 false를 반환
 			return false, nil
 		}
 	}
 	return true, params
+}
+
+// 라우터를 리턴하는 함수 (라우터 안에 라우터 구현할 때)
+func (router *MyRouter) Group(path string, handlers ...MyHandlerFunc) *MyRouter {
+	subRouter := &MyRouter{
+		handlers: make(map[string]map[string]MyHandlerFunc),
+		basePath: router.calculateAbsolutePath(path),
+	}
+	router.ANY(path+"/*", subRouter.handler())
+	return subRouter
+}
+
+func (router *MyRouter) calculateAbsolutePath(relativePath string) string {
+	if router.basePath == "" {
+		return relativePath
+	}
+	return path.Join(router.basePath, relativePath)
 }

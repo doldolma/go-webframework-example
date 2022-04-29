@@ -24,7 +24,12 @@ func (c *Context) JSON(value any) {
 	// value 값을 json으로 출력
 	if err := json.NewEncoder(c.ResponseWriter).Encode(value); err != nil {
 		// JSON 인코딩 실패시 에러 응답
-		c.ResponseWriter.WriteHeader(http.StatusInternalServerError)
-		c.ResponseWriter.Write([]byte(err.Error()))
+		c.Error(err.Error())
 	}
+}
+
+// 에러 응답 생성
+func (c *Context) Error(errMsg string) {
+	c.ResponseWriter.WriteHeader(http.StatusInternalServerError)
+	c.ResponseWriter.Write([]byte(errMsg))
 }

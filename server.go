@@ -1,6 +1,9 @@
 package main
 
-import "net/http"
+import (
+	"log"
+	"net/http"
+)
 
 type MyServer struct {
 	router       *MyRouter
@@ -9,8 +12,12 @@ type MyServer struct {
 }
 
 func NewServer() *MyServer {
-	router := &MyRouter{make(map[string]map[string]MyHandlerFunc)}
+	router := &MyRouter{
+		handlers: make(map[string]map[string]MyHandlerFunc),
+		basePath: "/",
+	}
 	server := &MyServer{router: router}
+	server.router.server = server
 
 	// 미들웨어 배열 등록
 	server.middlewares = []MyMiddleware{
@@ -28,11 +35,13 @@ func (server *MyServer) Run(addr string) {
 	server.startHandler = server.router.handler()
 
 	// 등록된 미들웨어를 라우터 핸들러 앞에 하나씩 추가
+	// 최종적으로 startHandler 는 LogHandler(startHandler()) 형태가 된다.
 	for i := len(server.middlewares) - 1; i >= 0; i-- {
 		server.startHandler = server.middlewares[i](server.startHandler)
 	}
 
 	// 웹 서버 시작
+	log.Printf("Server is listening %s", addr)
 	if err := http.ListenAndServe(addr, server); err != nil {
 		panic(err)
 	}
@@ -41,7 +50,7 @@ func (server *MyServer) Run(addr string) {
 func (server *MyServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Context 생성
 	c := &Context{
-		Params:         make(map[string]interface{}),
+		Params:         make(map[string]any),
 		ResponseWriter: w,
 		Request:        r,
 	}
