@@ -1,4 +1,4 @@
-package main
+package dolmago
 
 import (
 	"log"
@@ -6,7 +6,7 @@ import (
 )
 
 type MyServer struct {
-	router       *MyRouter
+	Router       *MyRouter
 	middlewares  []MyMiddleware
 	startHandler MyHandlerFunc
 }
@@ -16,8 +16,8 @@ func NewServer() *MyServer {
 		handlers: make(map[string]map[string]MyHandlerFunc),
 		basePath: "/",
 	}
-	server := &MyServer{router: router}
-	server.router.server = server
+	server := &MyServer{Router: router}
+	server.Router.server = server
 
 	// 미들웨어 배열 등록
 	server.middlewares = []MyMiddleware{
@@ -31,8 +31,8 @@ func (server *MyServer) Use(middlewares ...MyMiddleware) {
 }
 
 func (server *MyServer) Run(addr string) {
-	// startHandler를 라우터 핸들러 함수로 지정
-	server.startHandler = server.router.handler()
+	// 가장 먼저 실행되는 startHandler 를 라우터 핸들러 함수로 지정
+	server.startHandler = server.Router.handler()
 
 	// 등록된 미들웨어를 라우터 핸들러 앞에 하나씩 추가
 	// 최종적으로 startHandler 는 LogHandler(startHandler()) 형태가 된다.

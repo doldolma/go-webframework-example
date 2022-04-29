@@ -1,7 +1,7 @@
-package main
+package dolmago
 
 import (
-	"fmt"
+	"log"
 	"net/http"
 	"path"
 	"strings"
@@ -24,15 +24,14 @@ func (router *MyRouter) HandleFunc(method, urlPattern string, handler MyHandlerF
 	}
 	// handlers에 method와 URL 패턴과 핸들러 함수 등록
 	router.handlers[method][urlPattern] = handler
+	log.Printf("경로 등록완료 [%s]%s", method, path.Join(router.basePath, urlPattern))
 }
 
 // 요청 정보에 맞는 핸들러를 실행시키는 미들웨어(핸들러) 리턴
 func (router *MyRouter) handler() MyHandlerFunc {
 	return func(c *Context) {
 		for pattern, handler := range router.handlers[c.Request.Method] {
-			fmt.Println(router.calculateAbsolutePath(pattern), " 이게 맞나 ", pattern, " ", c.Request.URL.Path)
-			ok, params := match(router.calculateAbsolutePath(pattern), c.Request.URL.Path)
-			if ok {
+			if ok, params := match(router.calculateAbsolutePath(pattern), c.Request.URL.Path); ok {
 				// Context 생성
 				context := Context{
 					Params:         make(map[string]any),
@@ -79,11 +78,16 @@ func (router *MyRouter) ANY(urlPattern string, handler MyHandlerFunc) {
 	router.HandleFunc(http.MethodPost, urlPattern, handler)
 	router.HandleFunc(http.MethodPut, urlPattern, handler)
 	router.HandleFunc(http.MethodPatch, urlPattern, handler)
+	router.HandleFunc(http.MethodHead, urlPattern, handler)
+	router.HandleFunc(http.MethodOptions, urlPattern, handler)
 	router.HandleFunc(http.MethodDelete, urlPattern, handler)
+	router.HandleFunc(http.MethodConnect, urlPattern, handler)
+	router.HandleFunc(http.MethodTrace, urlPattern, handler)
 }
 
 // 핸들러의 pattern과 URL PATH가 일치하는지 체크
 func match(pattern, path string) (bool, map[string]string) {
+
 	if pattern == path {
 		return true, nil
 	}
@@ -124,6 +128,7 @@ func (router *MyRouter) Group(path string, handlers ...MyHandlerFunc) *MyRouter 
 		basePath: router.calculateAbsolutePath(path),
 	}
 	router.ANY(path+"/*", subRouter.handler())
+	router.ANY(path, subRouter.handler())
 	return subRouter
 }
 
